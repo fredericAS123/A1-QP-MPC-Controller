@@ -335,7 +335,7 @@ public:
     double plan_dt;
     int counter_per_plan;
     double counter_per_gait;
-    double counter_per_swing;
+    double counter_per_swing; //步态周期中单次摆动的计数
     int counter;
     Eigen::Vector4d gait_counter;
     Eigen::Vector4d gait_counter_speed;
@@ -373,7 +373,7 @@ public:
     Eigen::Quaterniond root_quat;
     Eigen::Vector3d root_euler;
     Eigen::Matrix3d root_rot_mat;
-    Eigen::Matrix3d root_rot_mat_z;
+    Eigen::Matrix3d root_rot_mat_z; //state.root_rot_mat_z 是从 state.root_rot_mat 中提取出来的部分，通常只关心与Z轴方向（垂直方向）相关的部分。它通常用于与地面接触或垂直力的计算
     Eigen::Vector3d root_lin_vel;
     Eigen::Vector3d root_ang_vel;
     Eigen::Vector3d root_acc;

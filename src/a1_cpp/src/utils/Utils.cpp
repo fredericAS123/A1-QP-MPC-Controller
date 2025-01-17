@@ -62,46 +62,49 @@ double Utils::cal_dihedral_angle(Eigen::Vector3d surf_coef_1, Eigen::Vector3d su
 }
 
 Eigen::Vector3d BezierUtils::get_foot_pos_curve(float t,
-                                   Eigen::Vector3d foot_pos_start,
-                                   Eigen::Vector3d foot_pos_final, 
-                                   double terrain_pitch_angle = 0)
+                                                 Eigen::Vector3d foot_pos_start,
+                                                 Eigen::Vector3d foot_pos_final, 
+                                                 double terrain_pitch_angle = 0)
 {
-    Eigen::Vector3d foot_pos_target;
-    // X-axis
+    Eigen::Vector3d foot_pos_target;  // 最终计算出的目标足部位置
+
+    // X轴贝塞尔插值
     std::vector<double> bezierX{foot_pos_start(0),
                                foot_pos_start(0),
-                                foot_pos_final(0),
-                                foot_pos_final(0),
-                                foot_pos_final(0)};
-    foot_pos_target(0) = bezier_curve(t, bezierX);
+                               foot_pos_final(0),
+                               foot_pos_final(0),
+                               foot_pos_final(0)};
+    foot_pos_target(0) = bezier_curve(t, bezierX);  // 计算X轴目标位置
 
-    // Y-axis
+    // Y轴贝塞尔插值
     std::vector<double> bezierY{foot_pos_start(1),
                                 foot_pos_start(1),
                                 foot_pos_final(1),
                                 foot_pos_final(1),
                                 foot_pos_final(1)};
-    foot_pos_target(1) = bezier_curve(t, bezierY);
+    foot_pos_target(1) = bezier_curve(t, bezierY);  // 计算Y轴目标位置
 
-    // Z-axis
+    // Z轴贝塞尔插值，带有地面坡度的调整
     std::vector<double> bezierZ{foot_pos_start(2),
                                 foot_pos_start(2),
                                 foot_pos_final(2),
                                 foot_pos_final(2),
                                 foot_pos_final(2)};
-    bezierZ[1] += FOOT_SWING_CLEARANCE1;
-    bezierZ[2] += FOOT_SWING_CLEARANCE2 + 0.5*sin(terrain_pitch_angle);
-    foot_pos_target(2) = bezier_curve(t, bezierZ);
+    bezierZ[1] += FOOT_SWING_CLEARANCE1;  // 在起始位置调整足部清除高度
+    bezierZ[2] += FOOT_SWING_CLEARANCE2 + 0.5*sin(terrain_pitch_angle);  // 在目标位置进行调整，加入地面坡度影响
+    foot_pos_target(2) = bezier_curve(t, bezierZ);  // 计算Z轴目标位置
 
-    return foot_pos_target;
+    return foot_pos_target;  // 返回计算的目标足部位置
 }
 
 
+
 double BezierUtils::bezier_curve(double t, const std::vector<double> &P) {
-    std::vector<double> coefficients{1, 4, 6, 4, 1};
+    std::vector<double> coefficients{1, 4, 6, 4, 1};  // 贝塞尔曲线的控制系数
     double y = 0;
+    // 遍历所有控制点，计算加权和
     for (int i = 0; i <= bezier_degree; i++) {
         y += coefficients[i] * std::pow(t, i) * std::pow(1 - t, bezier_degree - i) * P[i];
     }
-    return y;
+    return y;  // 返回曲线在t位置的值
 }

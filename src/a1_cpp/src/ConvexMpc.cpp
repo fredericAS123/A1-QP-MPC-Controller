@@ -5,45 +5,36 @@
 #include "ConvexMpc.h"
 
 ConvexMpc::ConvexMpc(Eigen::VectorXd &q_weights_, Eigen::VectorXd &r_weights_) {
-    mu = 0.3;
-    fz_min = 0.0;
-    fz_max = 0.0;
+    mu = 0.3;  // 摩擦系数
+    fz_min = 0.0;  // 最小垂直力
+    fz_max = 0.0;  // 最大垂直力
 
-    // reserve size for sparse matrix
-    Q_sparse = Eigen::SparseMatrix<double>(MPC_STATE_DIM * PLAN_HORIZON,MPC_STATE_DIM * PLAN_HORIZON);
+    // 为稀疏矩阵分配空间
+    Q_sparse = Eigen::SparseMatrix<double>(MPC_STATE_DIM * PLAN_HORIZON, MPC_STATE_DIM * PLAN_HORIZON);
     R_sparse = Eigen::SparseMatrix<double>(NUM_DOF * PLAN_HORIZON, NUM_DOF * PLAN_HORIZON);
 
+    // 初始化权重矩阵 q_weights_mpc 和 r_weights_mpc（代价函数权重矩阵）
     q_weights_mpc.resize(MPC_STATE_DIM * PLAN_HORIZON);
     for (int i = 0; i < PLAN_HORIZON; ++i) {
-        q_weights_mpc.segment(i * MPC_STATE_DIM, MPC_STATE_DIM) = q_weights_;
+        q_weights_mpc.segment(i * MPC_STATE_DIM, MPC_STATE_DIM) = q_weights_;//将单个时间步的状态权重向量 q_weights_ 重复 PLAN_HORIZON 次并填充到 q_weights_mpc 向量中
     }
-    Q.diagonal() = 2*q_weights_mpc;
-    for (int i = 0; i < MPC_STATE_DIM*PLAN_HORIZON; ++i) {
-        Q_sparse.insert(i,i) = 2*q_weights_mpc(i);
+    Q.diagonal() = 2 * q_weights_mpc;  // 赋值给 Q 的对角线
+    for (int i = 0; i < MPC_STATE_DIM * PLAN_HORIZON; ++i) {
+        Q_sparse.insert(i, i) = 2 * q_weights_mpc(i);  // 赋值给稀疏矩阵 Q_sparse
     }
 
-//    Q.setZero();
-//    R.setZero();
-//
-//    Eigen::Matrix<double, MPC_STATE_DIM, MPC_STATE_DIM> Q_small;
-//    Q_small.setZero();
-//    for (int i = 0; i < MPC_STATE_DIM; ++i) {
-//        Q_small(i, i) = q_weights_[i];
-//    }
-//    for (int i = 0; i < PLAN_HORIZON; ++i) {
-//        Q.block<MPC_STATE_DIM, MPC_STATE_DIM>(MPC_STATE_DIM * i, MPC_STATE_DIM * i) = Q_small;
-//    }
-
+    // r_weights_mpc 同理
     r_weights_mpc.resize(NUM_DOF * PLAN_HORIZON);
     for (int i = 0; i < PLAN_HORIZON; ++i) {
         r_weights_mpc.segment(i * NUM_DOF, NUM_DOF) = r_weights_;
     }
-    R.diagonal() = 2*r_weights_mpc;
-    for (int i = 0; i < NUM_DOF*PLAN_HORIZON; ++i) {
-        R_sparse.insert(i,i) = 2*r_weights_mpc(i);
+    R.diagonal() = 2 * r_weights_mpc;
+    for (int i = 0; i < NUM_DOF * PLAN_HORIZON; ++i) {
+        R_sparse.insert(i, i) = 2 * r_weights_mpc(i);
     }
 
-    linear_constraints.resize(MPC_CONSTRAINT_DIM * PLAN_HORIZON, NUM_DOF * PLAN_HORIZON);    
+    // 初始化线性约束矩阵
+    linear_constraints.resize(MPC_CONSTRAINT_DIM * PLAN_HORIZON, NUM_DOF * PLAN_HORIZON);
     for (int i = 0; i < NUM_LEG * PLAN_HORIZON; ++i) {
         linear_constraints.insert(0 + 5 * i, 0 + 3 * i) = 1;
         linear_constraints.insert(1 + 5 * i, 0 + 3 * i) = 1;
@@ -51,20 +42,12 @@ ConvexMpc::ConvexMpc(Eigen::VectorXd &q_weights_, Eigen::VectorXd &r_weights_) {
         linear_constraints.insert(3 + 5 * i, 1 + 3 * i) = 1;
         linear_constraints.insert(4 + 5 * i, 2 + 3 * i) = 1;
 
+        // 约束的摩擦力条件
         linear_constraints.insert(0 + 5 * i, 2 + 3 * i) = mu;
         linear_constraints.insert(1 + 5 * i, 2 + 3 * i) = -mu;
         linear_constraints.insert(2 + 5 * i, 2 + 3 * i) = mu;
         linear_constraints.insert(3 + 5 * i, 2 + 3 * i) = -mu;
     }
-
-//    Eigen::Matrix<double, NUM_DOF, NUM_DOF> R_small;
-//    R_small.setZero();
-//    for (int i = 0; i < NUM_DOF; ++i) {
-//        R_small(i, i) = r_weights_[i];
-//    }
-//    for (int i = 0; i < PLAN_HORIZON; ++i) {
-//        R.block<NUM_DOF, NUM_DOF>(NUM_DOF * i, NUM_DOF * i) = R_small;
-//    }
 }
 
 void ConvexMpc::reset() {
@@ -89,72 +72,68 @@ void ConvexMpc::reset() {
 //    lb.resize(constraints_dim * PLAN_HORIZON);
 //    ub.resize(constraints_dim * PLAN_HORIZON);
 
-    A_mat_c.setZero();
-    B_mat_c.setZero();
-    B_mat_c_list.setZero();
-    AB_mat_c.setZero();
+    A_mat_c.setZero();  // 置零连续时间的 A 矩阵
+    B_mat_c.setZero();  // 置零连续时间的 B 矩阵
+    B_mat_c_list.setZero();  // 置零控制输入列表矩阵
+    AB_mat_c.setZero();  // 置零合并的 A 和 B 矩阵
 
-    A_mat_d.setZero();
-    B_mat_d.setZero();
-    B_mat_d_list.setZero();
+    A_mat_d.setZero();  // 置零离散时间的 A 矩阵
+    B_mat_d.setZero();  // 置零离散时间的 B 矩阵
+    B_mat_d_list.setZero();  // 置零控制输入列表矩阵
 
-    AB_mat_d.setZero();
-    A_qp.setZero();
-    B_qp.setZero();
-    gradient.setZero();
-    lb.setZero();
-    ub.setZero();
-
+    AB_mat_d.setZero();  // 置零合并的 A 和 B 离散矩阵
+    A_qp.setZero();  // 置零 QP 的 A 矩阵
+    B_qp.setZero();  // 置零 QP 的 B 矩阵
+    gradient.setZero();  // 置零梯度
+    lb.setZero();  // 置零下限
+    ub.setZero();  // 置零上限
 }
 
 void ConvexMpc::calculate_A_mat_c(Eigen::Vector3d root_euler) {
-//    std::cout << "yaw: " << root_euler[2] << std::endl;
-    double cos_yaw = cos(root_euler[2]);
-    double sin_yaw = sin(root_euler[2]);
-//    double cos_pitch = cos(root_euler[1]);
-//    double tan_pitch = tan(root_euler[1]);
+    double cos_yaw = cos(root_euler[2]);  // 计算偏航角的余弦值
+    double sin_yaw = sin(root_euler[2]);  // 计算偏航角的正弦值
 
+    // 计算角速度到欧拉角速率的转换矩阵R_z(fai)
     Eigen::Matrix3d ang_vel_to_rpy_rate;
-
-//    ang_vel_to_rpy_rate << cos_yaw / cos_pitch, sin_yaw / cos_pitch, 0,
-//            -sin_yaw, cos_yaw, 0,
-//            cos_yaw * tan_pitch, sin_yaw * tan_pitch, 1;
-
     ang_vel_to_rpy_rate << cos_yaw, sin_yaw, 0,
-            -sin_yaw, cos_yaw, 0,
-            0, 0, 1;
+                           -sin_yaw, cos_yaw, 0,
+                           0, 0, 1;
 
+    // 更新 A_mat_c 的不同块
     A_mat_c.block<3, 3>(0, 6) = ang_vel_to_rpy_rate;
-    A_mat_c.block<3, 3>(3, 9) = Eigen::Matrix3d::Identity();
-    A_mat_c(11, NUM_DOF) = 1;
+    A_mat_c.block<3, 3>(3, 9) = Eigen::Matrix3d::Identity();  // 速度项
+    A_mat_c(11, NUM_DOF) = 1;  // 位置项
 }
 
 void ConvexMpc::calculate_B_mat_c(double robot_mass, const Eigen::Matrix3d &a1_trunk_inertia, Eigen::Matrix3d root_rot_mat,
                                   Eigen::Matrix<double, 3, NUM_LEG> foot_pos) {
-    // we need to calculate PLAN_HORIZON B matrices
+    // 计算全局惯性矩阵
     Eigen::Matrix3d a1_trunk_inertia_world;
     a1_trunk_inertia_world = root_rot_mat * a1_trunk_inertia * root_rot_mat.transpose();
+
     for (int i = 0; i < NUM_LEG; ++i) {
+        // 计算控制输入对状态的影响
         B_mat_c.block<3, 3>(6, 3 * i) =
-                a1_trunk_inertia_world.inverse() * Utils::skew(foot_pos.block<3, 1>(0, i));
+                a1_trunk_inertia_world.inverse() * Utils::skew(foot_pos.block<3, 1>(0, i));//J_s^-1*[r]_X(反对称)，反对称矩阵可用来表达向量叉乘
         B_mat_c.block<3, 3>(9, 3 * i) =
-                (1 / robot_mass) * Eigen::Matrix3d::Identity();
+                (1 / robot_mass) * Eigen::Matrix3d::Identity();  // 质量对控制的影响1^3/m
     }
 }
 
+
 void ConvexMpc::state_space_discretization(double dt) {
-    // simplified exp 
+    // 简化的指数矩阵离散化
     // TODO: this function is not necessary because A is actually sparse
     auto t1 = std::chrono::high_resolution_clock::now();
     // AB_mat_d = (dt * AB_mat_c).exp();
-    A_mat_d = Eigen::Matrix<double, MPC_STATE_DIM, MPC_STATE_DIM>::Identity() + A_mat_c*dt;
-    B_mat_d = B_mat_c*dt;
+    A_mat_d = Eigen::Matrix<double, MPC_STATE_DIM, MPC_STATE_DIM>::Identity() + A_mat_c * dt;
+    B_mat_d = B_mat_c * dt;
     auto t2 = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration<double, std::milli> ms_double_1 = t2 - t1;
 //    std::cout << "IN DISCRETIZATION: matrix exp: " << ms_double_1.count() << "ms" << std::endl;
 }
-
+//F FI
 void ConvexMpc::calculate_qp_mats(A1CtrlStates &state) {
     // standard QP formulation
     // minimize 1/2 * x' * P * x + q' * x

@@ -25,7 +25,7 @@
 // mpc
 #define PLAN_HORIZON 10
 #define MPC_STATE_DIM 13
-#define MPC_CONSTRAINT_DIM 20
+#define MPC_CONSTRAINT_DIM 20  //每个时间步的约束维度
 
 // robot constant
 #define NUM_LEG 4

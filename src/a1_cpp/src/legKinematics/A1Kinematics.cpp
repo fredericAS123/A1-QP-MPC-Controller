@@ -3,7 +3,7 @@
 //
 
 #include "A1Kinematics.h"
-
+// 直接调用MATLAB生成的C++。只有autoFunc_d_fk_dq（）为JAC矩阵，其余分别为d_fk_dc、dJ_dq、dJ_dpho，功能未知。
 Eigen::Vector3d A1Kinematics::fk(Eigen::Vector3d q, Eigen::VectorXd rho_opt, Eigen::VectorXd rho_fix) {
     Eigen::Vector3d out;
     autoFunc_fk_derive(q.data(), rho_opt.data(), rho_fix.data(), out.data());
